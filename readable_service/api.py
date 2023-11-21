@@ -23,13 +23,13 @@ class URLInput(BaseModel):
     url: str
 
 
-class TextOutput(BaseModel):
+class ContentOutput(BaseModel):
     title: str
     article_content: str
     html_content: str
 
 
-@app.post("/convert", response_model=TextOutput)
+@app.post("/convert", response_model=ContentOutput)
 def convert(url: URLInput):
     tmp = Readable(url)
     res = {
