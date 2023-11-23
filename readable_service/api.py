@@ -5,16 +5,26 @@ import json
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from readability import Readable
 from pydantic import BaseModel
 from bs4 import BeautifulSoup
 
+try:
+    from readability import Readable
+except ImportError:
+    from readable_service.readability import Readable
+
 # Initialize Redis client
-redis_client = redis.Redis(
-    host=os.getenv("REDIS_HOST", "localhost"),
-    port=os.getenv("REDIS_PORT", 6379),
-    db=int(os.getenv("REDIS_DB", 0)),
-)
+try:
+    redis_client = redis.Redis(
+        host=os.getenv("REDIS_HOST", "localhost"),
+        port=os.getenv("REDIS_PORT", 6379),
+        db=int(os.getenv("REDIS_DB", 0)),
+    )
+    # Check if redis is up
+    redis_client.ping()
+except Exception as e:
+    print("Error connecting to redis: ", e)
+    redis_client = None
 
 
 app = FastAPI()
@@ -47,7 +57,10 @@ def convert(url: URLInput):
     # check if url is in redis
     unique_key = hashlib.sha256(url.encode()).hexdigest()
     # Check if the data is in cache
-    if (cached_data := redis_client.get(unique_key)) is not None:
+    if (
+        redis_client is not None
+        and (cached_data := redis_client.get(unique_key)) is not None
+    ):
         return json.loads(cached_data)
 
     tmp = Readable(url)
@@ -56,7 +69,8 @@ def convert(url: URLInput):
         "title": tmp.title,
         "text": soup.get_text(),
     }
-    redis_client.set(unique_key, json.dumps(res))
+    if redis_client is not None:
+        redis_client.set(unique_key, json.dumps(res))
     return res
 
 
