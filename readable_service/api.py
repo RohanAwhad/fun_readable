@@ -52,7 +52,7 @@ class ContentOutput(BaseModel):
 
 
 @app.post("/convert", response_model=ContentOutput)
-def convert(url: URLInput):
+async def convert(url: URLInput):
     url = url.url
     # check if url is in redis
     unique_key = hashlib.sha256(url.encode()).hexdigest()
@@ -77,4 +77,4 @@ def convert(url: URLInput):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=50501)
+    uvicorn.run(app, host="localhost", port=50501)
