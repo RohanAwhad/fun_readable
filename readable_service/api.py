@@ -2,6 +2,7 @@ import redis
 import hashlib
 import os
 import json
+import urllib.parse as urlparse
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,17 +15,23 @@ except ImportError:
     from readable_service.readability import Readable
 
 # Initialize Redis client
+redis_client = None
 try:
-    redis_client = redis.Redis(
-        host=os.getenv("REDIS_HOST", "localhost"),
-        port=os.getenv("REDIS_PORT", 6379),
-        db=int(os.getenv("REDIS_DB", 0)),
-    )
-    # Check if redis is up
-    redis_client.ping()
+    url = os.getenv("REDISCLOUD_URL", None)
+    if url is not None:
+        url = urlparse.urlparse(url)
+        redis_client = redis.Redis(
+            host=url.hostname, port=url.port, password=url.password
+        )
+    else:
+        redis_client = redis.Redis(
+            host=os.getenv("REDIS_HOST", "localhost"),
+            port=os.getenv("REDIS_PORT", 6379),
+            db=int(os.getenv("REDIS_DB", 0)),
+        )
 except Exception as e:
-    print("Error connecting to redis: ", e)
-    redis_client = None
+    print("Error connecting to Redis")
+    print(e)
 
 
 app = FastAPI()
