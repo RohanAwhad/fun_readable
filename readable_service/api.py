@@ -38,8 +38,6 @@ class URLInput(BaseModel):
 
 class ContentOutput(BaseModel):
     title: str
-    article_content: str
-    html_content: str
     text: str
 
 
@@ -56,8 +54,6 @@ def convert(url: URLInput):
     soup = BeautifulSoup(tmp.article_content, "lxml")
     res = {
         "title": tmp.title,
-        "article_content": str(tmp.article_content),
-        "html_content": str(tmp.html_content),
         "text": soup.get_text(),
     }
     redis_client.set(unique_key, json.dumps(res))
