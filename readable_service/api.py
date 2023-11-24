@@ -29,6 +29,10 @@ try:
             port=os.getenv("REDIS_PORT", 6379),
             db=int(os.getenv("REDIS_DB", 0)),
         )
+    if redis_client.ping():
+        print("Connected to Redis")
+    else:
+        raise Exception("Connection to Redis failed")
 except Exception as e:
     print("Error connecting to Redis")
     print(e)
