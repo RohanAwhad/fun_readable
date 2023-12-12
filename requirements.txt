@@ -7,3 +7,4 @@ lxml==4.9.2
 redis
 gunicorn
 html2text
+playwright
