@@ -1,10 +1,14 @@
 import math
 import re
-import requests
+# import requests
+from html2text import html2text
 
 from bs4 import BeautifulSoup
 from loguru import logger
 from urllib.parse import urljoin
+
+# from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 
 
 # All of the regular expressions in use within readability
@@ -24,10 +28,12 @@ regexps = {
 }
 
 class Readable:
-    def __init__(self, url):
+    async def run(self, url):
         self.url = url
-        self.response = self._get_response()
-        self.html_content = self.response.text
+        # self.response = await self._get_response()
+        # self.html_content = self.response.text
+        await self._get_response()
+        self.text = html2text(self.html_content)
         self.soup = self._get_soup()
         self.article_content = str(self._grab_article_content())
         self.soup = self._get_soup()  # Reset soup to the original content because while grabbing article content, we modify the soup
@@ -42,14 +48,21 @@ class Readable:
         return article_content
 
 
-    def _get_response(self):
-        res = requests.get(self.url)
-        if res.status_code != 200:
-            raise Exception(f'Failed to get url: {self.url}')
-        return res
+    async def _get_response(self):
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(self.url)
+            self.html_content = await page.content()
+            await browser.close()
+
+        # res = requests.get(self.url)
+        # if res.status_code != 200:
+        #     raise Exception(f'Failed to get url: {self.url}')
+        # return res
 
     def _get_soup(self):
-        return BeautifulSoup(self.response.text, 'lxml')
+        return BeautifulSoup(self.html_content, 'lxml')
 
 
     def _remove_unlikely_candidate(self, node):
@@ -386,3 +399,14 @@ class Readable:
         self._remove_extra_paragraphs(article_content)
         self._clean_single_header(article_content)
         self._fix_links(article_content)
+
+
+if __name__ == '__main__':
+    import asyncio
+    import time
+    start = time.time()
+    tmp = Readable()
+    asyncio.run(tmp.run('https://scottsdaleveterinaryclinic.com/pet-services/'))
+    print(tmp.article_content)
+    print(time.time() - start)
+    print(tmp.title)

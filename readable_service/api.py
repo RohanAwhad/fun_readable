@@ -36,6 +36,7 @@ try:
 except Exception as e:
     print("Error connecting to Redis")
     print(e)
+    redis_client = None
 
 
 app = FastAPI()
@@ -55,6 +56,7 @@ def healthcheck():
 
 class URLInput(BaseModel):
     url: str
+    is_blog: bool
 
 
 class ContentOutput(BaseModel):
@@ -63,10 +65,10 @@ class ContentOutput(BaseModel):
 
 
 @app.post("/convert", response_model=ContentOutput)
-async def convert(url: URLInput):
-    url = url.url
+async def convert(inp: URLInput):
+    url = inp.url
     # check if url is in redis
-    unique_key = hashlib.sha256(url.encode()).hexdigest()
+    unique_key = hashlib.sha256(f"{url}{inp.is_blog}".encode()).hexdigest()
     # Check if the data is in cache
     if (
         redis_client is not None
@@ -74,18 +76,24 @@ async def convert(url: URLInput):
     ):
         return json.loads(cached_data)
 
-    tmp = Readable(url)
+    # If not, run the Readable algorithm
+    tmp = Readable()
+    await tmp.run(url)
+
+    # Create response
+    res = {}
+    res['title'] = tmp.title
     soup = BeautifulSoup(tmp.article_content, "lxml")
-    res = {
-        "title": tmp.title,
-        "text": soup.get_text(),
-    }
-    if redis_client is not None:
-        redis_client.set(unique_key, json.dumps(res))
+    print(tmp.article_content)
+    print(soup.get_text())
+    res['text'] = soup.get_text() if inp.is_blog else tmp.text
+
+    # Store in cache
+    if redis_client is not None: redis_client.set(unique_key, json.dumps(res))
     return res
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="localhost", port=50501)
+    uvicorn.run("api:app", host="localhost", port=50501, reload=True)
