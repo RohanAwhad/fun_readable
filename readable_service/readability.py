@@ -1,6 +1,5 @@
 import math
 import re
-# import requests
 from html2text import html2text
 
 from bs4 import BeautifulSoup
