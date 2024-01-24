@@ -1,11 +1,9 @@
-import subprocess
-subprocess.run(['playwright', 'install', 'chromium'])
-
 import math
 import re
-from html2text import html2text
+import unicodedata
 
 from bs4 import BeautifulSoup
+from html2text import html2text
 from loguru import logger
 from urllib.parse import urljoin
 
@@ -36,6 +34,7 @@ class Readable:
         # self.html_content = self.response.text
         await self._get_response()
         self.text = html2text(self.html_content)
+        self.text = unicodedata.normalize("NFKD", self.text)
         self.soup = self._get_soup()
         self.article_content = str(self._grab_article_content())
         self.soup = self._get_soup()  # Reset soup to the original content because while grabbing article content, we modify the soup
@@ -51,17 +50,22 @@ class Readable:
 
 
     async def _get_response(self):
-        async with async_playwright() as p:
-            browser = await p.chromium.launch()
-            page = await browser.new_page()
-            await page.goto(self.url)
-            self.html_content = await page.content()
-            await browser.close()
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch()
+                page = await browser.new_page()
+                await page.goto(self.url)
+                self.html_content = await page.content()
+                await browser.close()
+                return
+        except Exception as e:
+            logger.error(e)
 
-        # res = requests.get(self.url)
-        # if res.status_code != 200:
-        #     raise Exception(f'Failed to get url: {self.url}')
-        # return res
+        import requests
+        res = requests.get(self.url)
+        if res.status_code != 200:
+            raise Exception(f'Failed to get url: {self.url}. Error code: {res.status_code}. Error message: {res.text}')
+        self.html_content = res.text
 
     def _get_soup(self):
         return BeautifulSoup(self.html_content, 'lxml')

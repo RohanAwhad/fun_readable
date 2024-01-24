@@ -4,10 +4,12 @@ import os
 import json
 import urllib.parse as urlparse
 
+from bs4 import BeautifulSoup
 from fastapi import FastAPI
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from bs4 import BeautifulSoup
+from typing import Optional
 
 try:
     from readability import Readable
@@ -62,10 +64,11 @@ class URLInput(BaseModel):
 class ContentOutput(BaseModel):
     title: str
     text: str
+    error: Optional[str] = None
 
 
 @app.post("/convert", response_model=ContentOutput)
-async def convert(inp: URLInput):
+async def convert(inp: URLInput, response: Response):
     url = inp.url
     # check if url is in redis
     unique_key = hashlib.sha256(f"{url}{inp.is_blog}".encode()).hexdigest()
@@ -77,20 +80,29 @@ async def convert(inp: URLInput):
         return json.loads(cached_data)
 
     # If not, run the Readable algorithm
-    tmp = Readable()
-    await tmp.run(url)
+    try:
+        tmp = Readable()
+        await tmp.run(url)
 
-    # Create response
-    res = {}
-    res['title'] = tmp.title
-    soup = BeautifulSoup(tmp.article_content, "lxml")
-    print(tmp.article_content)
-    print(soup.get_text())
-    res['text'] = soup.get_text() if inp.is_blog else tmp.text
+        # Create response
+        res = {}
+        res['title'] = tmp.title
+        soup = BeautifulSoup(tmp.article_content, "lxml")
+        print(tmp.article_content)
+        print(soup.get_text())
+        res['text'] = soup.get_text() if inp.is_blog else tmp.text
 
-    # Store in cache
-    if redis_client is not None: redis_client.set(unique_key, json.dumps(res))
-    return res
+        # Store in cache
+        if redis_client is not None: redis_client.set(unique_key, json.dumps(res))
+    except Exception as e:
+        res = {
+            'title': '',
+            'text': '',
+            "error": str(e)
+        }
+        response.status_code = 500
+    finally:
+        return res
 
 
 if __name__ == "__main__":
