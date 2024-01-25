@@ -52,7 +52,7 @@ def handler(event, context):
       print(f'Reader response: {res_data}')
       title = res_data['title'].strip()
       text = res_data['text'].strip()
-      ret = {'title': title, 'text': text}
+      ret = {'title': title, 'text': text, 'url': url}
 
       # send to out_sns
       _ = sns.publish(
