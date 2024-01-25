@@ -100,13 +100,13 @@ async def convert(inp: URLInput, response: Response):
     print(f'title: {title}')
 
     if title and text:
-        # Store in cache
-        if redis_client is not None: redis_client.set(unique_key, json.dumps(res))
         res = {
             'title': title,
             'text': text,
             "error": None
         }
+        # Store in cache
+        if redis_client is not None: redis_client.set(unique_key, json.dumps(res))
     else:
         res = {
             'title': '',
