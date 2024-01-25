@@ -1,3 +1,6 @@
+import subprocess
+subprocess.run(['playwright', 'install', 'chromium'])
+
 import redis
 import hashlib
 import os
