@@ -38,10 +38,11 @@ class Readable:
         await self._get_response()
         self.text = html2text(self.html_content)
         self.text = unicodedata.normalize("NFKD", self.text)
+        print(self.text[:2000])
         self.soup = self._get_soup()
+        self.title = self.soup.title.text
         self.article_content = str(self._grab_article_content())
         self.soup = self._get_soup()  # Reset soup to the original content because while grabbing article content, we modify the soup
-        self.title = self.soup.title.text
 
     def _grab_article_content(self):
         self._trash_bad_nodes()

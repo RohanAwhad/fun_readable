@@ -80,29 +80,42 @@ async def convert(inp: URLInput, response: Response):
         return json.loads(cached_data)
 
     # If not, run the Readable algorithm
+    title, text, err = "", "", ""
     try:
         tmp = Readable()
         await tmp.run(url)
+    except Exception as e:
+        err = str(e)
+        print(e)
 
-        # Create response
-        res = {}
-        res['title'] = tmp.title
+    title = tmp.title if hasattr(tmp, "title") else ""
+    text = tmp.text if hasattr(tmp, "text") else ""
+    article_content = tmp.article_content if hasattr(tmp, "article_content") else ""
+
+    if article_content:
         soup = BeautifulSoup(tmp.article_content, "lxml")
-        print(tmp.article_content)
-        print(soup.get_text())
-        res['text'] = soup.get_text() if inp.is_blog else tmp.text
+        text = soup.get_text() if inp.is_blog else tmp.text
 
+    print(f'text: {text[:100]}')
+    print(f'title: {title}')
+
+    if title and text:
         # Store in cache
         if redis_client is not None: redis_client.set(unique_key, json.dumps(res))
-    except Exception as e:
+        res = {
+            'title': title,
+            'text': text,
+            "error": None
+        }
+    else:
         res = {
             'title': '',
             'text': '',
-            "error": str(e)
+            "error": err
         }
         response.status_code = 500
-    finally:
-        return res
+
+    return res
 
 
 if __name__ == "__main__":
