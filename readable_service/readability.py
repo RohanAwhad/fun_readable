@@ -7,7 +7,7 @@ from html2text import html2text
 from loguru import logger
 from urllib.parse import urljoin
 
-# from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright
 from playwright.async_api import async_playwright
 
 
@@ -28,11 +28,23 @@ regexps = {
 }
 
 class Readable:
-    async def run(self, url):
+    def run(self, url):
+        self.url = url
+        self.response = self._get_response()
+        self.text = html2text(self.html_content)
+        self.text = unicodedata.normalize("NFKD", self.text)
+        print(self.text[:2000])
+        self.soup = self._get_soup()
+        self.title = self.soup.title.text
+        self.article_content = str(self._grab_article_content())
+        self.soup = self._get_soup()  # Reset soup to the original content because while grabbing article content, we modify the soup
+
+
+    async def arun(self, url):
         self.url = url
         # self.response = await self._get_response()
         # self.html_content = self.response.text
-        await self._get_response()
+        await self._aget_response()
         self.text = html2text(self.html_content)
         self.text = unicodedata.normalize("NFKD", self.text)
         print(self.text[:2000])
@@ -49,8 +61,29 @@ class Readable:
         self._prepare_article_content(article_content)
         return article_content
 
+    def _plain_old_request(self):
+        import requests
+        res = requests.get(self.url)
+        if res.status_code != 200:
+            raise Exception(f'Failed to get url: {self.url}. Error code: {res.status_code}. Error message: {res.text}')
+        self.html_content = res.text
 
-    async def _get_response(self):
+    def _get_response(self):
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page()
+                page.goto(self.url)
+                self.html_content = page.content()
+                browser.close()
+                return
+        except Exception as e:
+            logger.error(e)
+
+        self._plain_old_request()
+
+
+    async def _aget_response(self):
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch()
@@ -62,11 +95,8 @@ class Readable:
         except Exception as e:
             logger.error(e)
 
-        import requests
-        res = requests.get(self.url)
-        if res.status_code != 200:
-            raise Exception(f'Failed to get url: {self.url}. Error code: {res.status_code}. Error message: {res.text}')
-        self.html_content = res.text
+        self._plain_old_request()
+
 
     def _get_soup(self):
         return BeautifulSoup(self.html_content, 'lxml')

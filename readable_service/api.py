@@ -86,7 +86,7 @@ async def convert(inp: URLInput, response: Response):
     title, text, err = "", "", ""
     try:
         tmp = Readable()
-        await tmp.run(url)
+        await tmp.arun(url)
     except Exception as e:
         err = str(e)
         print(e)
