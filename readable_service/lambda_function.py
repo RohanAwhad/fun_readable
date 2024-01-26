@@ -25,7 +25,8 @@ def handler(event, context):
   print(event)
   batch_item_failures = []
   for message in event['Records']:
-    url = json.loads(message['body'])['url']
+    body = json.loads(message['body'])
+    url = json.loads(body['Message'])['url']
     receipt_handle = message['receiptHandle']
     try:
       # reader request
