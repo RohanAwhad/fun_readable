@@ -5,6 +5,7 @@
 
 import json
 import os
+from datetime import datetime, timezone
 
 # === AWS Dependencies ===
 import boto3
@@ -14,6 +15,8 @@ in_sqs_url = os.environ['IN_SQS_URL']
 
 sns = boto3.client('sns')
 out_sns_topic_arn = os.environ['OUT_SNS_TOPIC_ARN']
+
+dynamodb = boto3.resource('dynamodb')
 
 # temporary solution
 import requests
@@ -26,7 +29,9 @@ def handler(event, context):
   batch_item_failures = []
   for message in event['Records']:
     body = json.loads(message['body'])
-    url = json.loads(body['Message'])['url']
+    msg = json.loads(body['Message'])
+    url = msg['url']
+    table_name = msg['table_name']
     receipt_handle = message['receiptHandle']
     try:
       # reader request
@@ -53,9 +58,25 @@ def handler(event, context):
       print(f'Reader response: {res_data}')
       title = res_data['title'].strip()
       text = res_data['text'].strip()
-      ret = {'title': title, 'text': text, 'url': url}
+
+      # save to dynamodb
+      table = dynamodb.Table(table_name)
+      updates = {
+        'page_title': title,
+        'page_text': text,
+        'updated_on': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+      }
+      update_expression = [f'{x}=:{x}' for x in updates.keys()]  # ['title=:title', 'text=:text', ...]
+      update_expression = 'SET ' + ', '.join(update_expression)  # 'SET title=:title, text=:text, ...'
+      exp_attr_values = {f':{k}': v for k, v in updates.items()}  # {':title': '...', ':text': '...', ...}
+      table.update_item(
+        Key=dict(url=data['url']),
+        UpdateExpression=update_expression,
+        ExpressionAttributeValues=exp_attr_values
+      )
 
       # send to out_sns
+      ret = {'url': url, 'table_name': table_name}
       _ = sns.publish(
         TopicArn=out_sns_topic_arn,
         Message=json.dumps(ret)
