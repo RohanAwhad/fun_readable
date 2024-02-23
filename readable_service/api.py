@@ -1,5 +1,6 @@
 import subprocess
-subprocess.run(['playwright', 'install', 'chromium'])
+
+subprocess.run(["playwright", "install", "chromium"])
 
 import redis
 import hashlib
@@ -25,9 +26,7 @@ try:
     url = os.getenv("REDISCLOUD_URL", None)
     if url is not None:
         url = urlparse.urlparse(url)
-        redis_client = redis.Redis(
-            host=url.hostname, port=url.port, password=url.password
-        )
+        redis_client = redis.Redis(host=url.hostname, port=url.port, password=url.password)
     else:
         redis_client = redis.Redis(
             host=os.getenv("REDIS_HOST", "localhost"),
@@ -76,10 +75,7 @@ async def convert(inp: URLInput, response: Response):
     # check if url is in redis
     unique_key = hashlib.sha256(f"{url}{inp.is_blog}".encode()).hexdigest()
     # Check if the data is in cache
-    if (
-        redis_client is not None
-        and (cached_data := redis_client.get(unique_key)) is not None
-    ):
+    if redis_client is not None and (cached_data := redis_client.get(unique_key)) is not None:
         return json.loads(cached_data)
 
     # If not, run the Readable algorithm
@@ -99,23 +95,50 @@ async def convert(inp: URLInput, response: Response):
         soup = BeautifulSoup(tmp.article_content, "lxml")
         text = soup.get_text() if inp.is_blog else tmp.text
 
-    print(f'text: {text[:100]}')
-    print(f'title: {title}')
+    print(f"text: {text[:100]}")
+    print(f"title: {title}")
 
     if title and text:
-        res = {
-            'title': title,
-            'text': text,
-            "error": None
-        }
+        res = {"title": title, "text": text, "error": None}
         # Store in cache
-        if redis_client is not None: redis_client.set(unique_key, json.dumps(res))
+        if redis_client is not None:
+            redis_client.set(unique_key, json.dumps(res))
     else:
-        res = {
-            'title': '',
-            'text': '',
-            "error": err
-        }
+        res = {"title": "", "text": "", "error": err}
+        response.status_code = 500
+
+    return res
+
+
+class ContentIn(BaseModel):
+    html: str
+
+
+@app.post("/convert/html", response_model=ContentOutput)
+def convert_html(inp: ContentIn, response: Response):
+    title, text, err = "", "", ""
+    try:
+        tmp = Readable()
+        tmp.run_html(inp.html)
+    except Exception as e:
+        err = str(e)
+        print(e)
+
+    title = tmp.title if hasattr(tmp, "title") else ""
+    text = tmp.text if hasattr(tmp, "text") else ""
+    article_content = tmp.article_content if hasattr(tmp, "article_content") else ""
+
+    if article_content:
+        soup = BeautifulSoup(tmp.article_content, "lxml")
+        text = soup.get_text()
+
+    print(f"text: {text[:100]}")
+    print(f"title: {title}")
+
+    if title and text:
+        res = {"title": title, "text": text, "error": None}
+    else:
+        res = {"title": "", "text": "", "error": err}
         response.status_code = 500
 
     return res
