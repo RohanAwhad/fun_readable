@@ -3,12 +3,16 @@
 # from bs4 import BeautifulSoup
 # from readability import Readable
 
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
 
 # === AWS Dependencies ===
 import boto3
+
+s3 = boto3.client("s3")
+in_bucket = os.environ["IN_BUCKET_NAME"]
 
 sqs = boto3.client("sqs")
 in_sqs_url = os.environ["IN_SQS_URL"]
@@ -41,9 +45,11 @@ def handler(event, context):
             # reader request
             if is_html:
                 # Get HTML from the table's "pageHTML" column
-                table = dynamodb.Table(table_name)
-                response = table.get_item(Key={"url": url})
-                page_html = response["Item"]["pageHTML"]
+                url_hash = hashlib.sha256(url.encode()).hexdigest()
+
+                s3_key = f"html/{url_hash}.html"
+                response = s3.get_object(Bucket=in_bucket, Key=s3_key)
+                page_html = response["Body"].read()
                 data = dict(html=page_html)
                 res = requests.post(READER_HTML_URL, json=data)
             else:
@@ -87,7 +93,7 @@ def handler(event, context):
             update_expression = "SET " + ", ".join(update_expression)  # 'SET title=:title, text=:text, ...'
             exp_attr_values = {f":{k}": v for k, v in updates.items()}  # {':title': '...', ':text': '...', ...}
             table.update_item(
-                Key=dict(url=data["url"]), UpdateExpression=update_expression, ExpressionAttributeValues=exp_attr_values
+                Key=dict(url=url), UpdateExpression=update_expression, ExpressionAttributeValues=exp_attr_values
             )
 
             # send to out_sns
