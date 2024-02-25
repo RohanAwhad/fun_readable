@@ -34,15 +34,28 @@ def handler(event, context):
         body = json.loads(message["body"])
         msg = json.loads(body["Message"])
         url = msg["url"]
+        is_html = msg["is_html"]
         table_name = msg["table_name"]
         receipt_handle = message["receiptHandle"]
         try:
             # reader request
-            data = dict(url=url, is_blog=True)
-            res = requests.post(READER_URL, json=data)
+            if is_html:
+                # Get HTML from the table's "pageHTML" column
+                table = dynamodb.Table(table_name)
+                response = table.get_item(Key={"url": url})
+                page_html = response["Item"]["pageHTML"]
+                data = dict(html=page_html)
+                res = requests.post(READER_HTML_URL, json=data)
+            else:
+                data = dict(url=url, is_blog=True)
+                res = requests.post(READER_URL, json=data)
+
             cnt = 0
             while ((res.status_code >= 500) or res.json()["text"] == "") and (cnt < 3):
-                res = requests.post(READER_URL, json=data)
+                if is_html:
+                    res = requests.post(READER_HTML_URL, json=data)
+                else:
+                    res = requests.post(READER_URL, json=data)
                 cnt += 1
 
             res_data = res.json()
